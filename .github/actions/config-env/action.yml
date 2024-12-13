@@ -149,7 +149,7 @@ runs:
             # rm -rf .azure
             # azd init -e ${{ inputs.AZURE_ENV_NAME }} -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
           #fi           
-
+ 
           # Set environment variables by getting them from the GitHub environment or the last deployment. 
           # GitHub environment variables take precedence over those from the last deployment.
           # Here's how it works for each variable:
