@@ -43,42 +43,6 @@ runs:
       with:
         creds: ${{ inputs.AZURE_CREDENTIALS }}
 
-    - name: Set permissions for service principal 
-      shell: bash
-      run: |
-        echo "Setting permissions for service principal..."
-        AZURE_CREDENTIALS=$(echo '${{ inputs.AZURE_CREDENTIALS }}' | jq -r .)
-        tenantId=$(echo $AZURE_CREDENTIALS | jq -r .tenantId)
-        rg=rg-${{ inputs.AZURE_ENV_NAME }}
-        clientId=$(echo $AZURE_CREDENTIALS | jq -r .clientId)
-        clientSecret=$(echo $AZURE_CREDENTIALS | jq -r .clientSecret) 
-        subscriptionId=${{ inputs.AZURE_SUBSCRIPTION_ID }}
-        principalId=$(az ad sp list --filter "appId eq '$clientId'" --query "[].id" -o tsv)
-        
-        scope="/subscriptions/$subscriptionId/resourceGroups/$rg"
-
-        # Assign roles
-        roles=(
-        '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'  # Storage Blob Data Reader
-        '8311e382-0749-4cb8-b61a-304f252e45ec'  # ACR Push Role
-        '7f951dda-4ed3-4680-a7ca-43fe172d538d'  # ACR Pull Role
-        '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'  # Cognitive Services OpenAI User
-        'f6c7c914-8db3-469d-8ca1-694a8f32e121'  # Data Scientist
-        'ea01e6af-a1c1-4350-9563-ad00f8c72ec5'  # Secrets Reader
-        '8ebe5a00-799e-43f5-93ac-243d3dce84a7'  # Search Index Data Contributor
-        '7ca78c08-252a-4471-8644-bb5ff32d4ba0'  # Search Service Contributor
-        '64702f94-c441-49e6-a78b-ef80e0188fee'  # Azure AI Developer
-        )
-
-        for roleId in "${roles[@]}"; do
-        az role assignment create \
-          --assignee-object-id "$principalId" \
-          --assignee-principal-type "ServicePrincipal" \
-          --role "$roleId" \
-          --scope "$scope"
-        done
-
-
     - name: Login to Azure Developer CLI 
       shell: bash
       run: |
@@ -92,7 +56,7 @@ runs:
     - name: Setup Python 
       uses: actions/setup-python@v5
       with:
-          python-version: 3.8
+          python-version: 3.11
 
     - name: Provision environment
       shell: bash
@@ -155,6 +119,9 @@ runs:
             deployment_exists=true
           fi
         
+          # this is always a service principal when run from a pipeline
+          azd env set AZURE_PRINCIPAL_TYPE 'ServicePrincipal'
+
           # Checking if previous deployment exists
           if [  "$deployment_exists" = false ]; then
             echo "Provisioning environment..." 
@@ -164,25 +131,25 @@ runs:
 
           # Checking if the resource group exists
           export AZURE_RESOURCE_GROUP=$(azd env get-values -e ${{ inputs.AZURE_ENV_NAME }} | grep AZURE_RESOURCE_GROUP | cut -d'=' -f2 | tr -d '"' || true)
-          if [ -z "$AZURE_RESOURCE_GROUP" ]; then
-            resource_group_exist=false
-          else
-            resource_group_exist=$(az group exists --name "$AZURE_RESOURCE_GROUP")  
-          fi        
-          echo "🔶 | Resource group ${AZURE_RESOURCE_GROUP:-'Undefined'} exist status: $resource_group_exist"
+          #if [ -z "$AZURE_RESOURCE_GROUP" ]; then
+          #  resource_group_exist=false
+          #else
+          #  resource_group_exist=$(az group exists --name "$AZURE_RESOURCE_GROUP")  
+          #fi        
+          #echo "🔶 | Resource group ${AZURE_RESOURCE_GROUP:-'Undefined'} exist status: $resource_group_exist"
 
           # Previous deployment exists but the resource group doesn't. 
           # This situation occurs if you made a deployment and then deleted the resource group.
           # Resource group may also be empty because previous deployment finished with failure.
           # In both cases we recreate resources
-          if [ "$deployment_exists" = true ] && [ "$resource_group_exist" = false ]; then
-            echo "❌ | Deployment exists but resource group $AZURE_RESOURCE_GROUP doesn't."
-            exit 1
+          #if [ "$deployment_exists" = true ] && [ "$resource_group_exist" = false ]; then
+          #  echo "❌ | Deployment exists but resource group $AZURE_RESOURCE_GROUP doesn't."
+          #  exit 1
             # azd down --force --purge
             # rm -rf .azure
             # azd init -e ${{ inputs.AZURE_ENV_NAME }} -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
-          fi           
-
+          #fi           
+  
           # Set environment variables by getting them from the GitHub environment or the last deployment. 
           # GitHub environment variables take precedence over those from the last deployment.
           # Here's how it works for each variable:
